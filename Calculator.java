@@ -3,32 +3,29 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
-// 简单Java计算器（Swing图形界面，可直接运行）
 public class Calculator extends JFrame implements ActionListener {
     private JTextField display;
     private StringBuilder input;
 
     public Calculator() {
-        // 初始化变量
         input = new StringBuilder();
-
-        // 设置窗口属性
         setTitle("Java 简易计算器");
         setSize(300, 400);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
+        setLocationRelativeTo(null);
 
-        // 创建显示框
         display = new JTextField();
         display.setEditable(false);
         display.setFont(new Font("Arial", Font.PLAIN, 24));
+        display.setHorizontalAlignment(JTextField.RIGHT);
+        display.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         add(display, BorderLayout.NORTH);
 
-        // 创建按钮面板
         JPanel panel = new JPanel();
-        panel.setLayout(new GridLayout(4, 4));
+        panel.setLayout(new GridLayout(4, 4, 5, 5));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // 按钮文本
         String[] buttons = {
             "7", "8", "9", "/",
             "4", "5", "6", "*",
@@ -36,11 +33,15 @@ public class Calculator extends JFrame implements ActionListener {
             "0", "C", "=", "+"
         };
 
-        // 添加按钮到面板
         for (String text : buttons) {
             JButton button = new JButton(text);
             button.setFont(new Font("Arial", Font.PLAIN, 20));
             button.addActionListener(this);
+            button.setFocusPainted(false);
+            button.setBorder(BorderFactory.createRaisedBevelBorder());
+            if (text.matches("[+\\-*/=C]")) {
+                button.setBackground(new Color(240, 240, 240));
+            }
             panel.add(button);
         }
 
@@ -51,35 +52,83 @@ public class Calculator extends JFrame implements ActionListener {
     public void actionPerformed(ActionEvent e) {
         String command = e.getActionCommand();
 
-        if (command.charAt(0) == 'C') {
-            // 清空输入
+        if (command.equals("C")) {
             input.setLength(0);
             display.setText("");
-        } else if (command.charAt(0) == '=') {
-            // 计算结果
+        } else if (command.equals("=")) {
             try {
-                double result = evaluate(input.toString());
-                display.setText(String.valueOf(result));
+                String expr = input.toString().trim();
+                if (expr.isEmpty()) {
+                    display.setText("");
+                    return;
+                }
+                if (expr.matches(".*[+\\-*/]$")) {
+                    expr = expr.substring(0, expr.length() - 1);
+                }
+                double result = evaluate(expr);
+                display.setText(result == (long) result ?
+                    String.valueOf((long) result) : String.valueOf(result));
                 input.setLength(0);
             } catch (Exception ex) {
                 display.setText("Error");
+                input.setLength(0);
             }
         } else {
-            // 追加输入
-            input.append(command);
+            if (command.matches("[+\\-*/]") && input.length() > 0) {
+                char lastChar = input.charAt(input.length() - 1);
+                if (lastChar == '+' || lastChar == '-' || lastChar == '*' || lastChar == '/') {
+                    input.setCharAt(input.length() - 1, command.charAt(0));
+                } else {
+                    input.append(command);
+                }
+            } else {
+                input.append(command);
+            }
             display.setText(input.toString());
         }
     }
 
-    // 简单表达式计算（支持加减乘除）
+    // evaluate方法必须在Calculator类内部！
     private double evaluate(String expr) throws Exception {
-        return (double) new javax.script.ScriptEngineManager()
-                .getEngineByName("JavaScript")
-                .eval(expr);
+        try {
+            return (double) new javax.script.ScriptEngineManager()
+                    .getEngineByName("nashorn")
+                    .eval(expr);
+        } catch (Exception e) {
+            double result = 0;
+            char op = '+';
+            StringBuilder num = new StringBuilder();
+            for (int i = 0; i < expr.length(); i++) {
+                char c = expr.charAt(i);
+                if (Character.isDigit(c) || c == '.') {
+                    num.append(c);
+                } else {
+                    double n = Double.parseDouble(num.toString());
+                    result = calculate(result, n, op);
+                    op = c;
+                    num.setLength(0);
+                }
+            }
+            double n = Double.parseDouble(num.toString());
+            result = calculate(result, n, op);
+            return result;
+        }
+    }
+
+    // calculate辅助方法也必须在类内部！
+    private double calculate(double a, double b, char op) {
+        switch (op) {
+            case '+': return a + b;
+            case '-': return a - b;
+            case '*': return a * b;
+            case '/':
+                if (b == 0) throw new ArithmeticException("除数不能为0");
+                return a / b;
+            default: return 0;
+        }
     }
 
     public static void main(String[] args) {
-        // 启动计算器（Swing需在EDT线程运行）
         SwingUtilities.invokeLater(() -> {
             Calculator calculator = new Calculator();
             calculator.setVisible(true);
